@@ -57,7 +57,7 @@ class node:
             self.child_yes.rec_set_m_i_o(m, i, o)
             self.child_no.rec_set_m_i_o(m, i, o)
 
-def test(x, root, test_name="test"):
+def test_Tree(x, y, root, test_name="test"):
     # set correct input output signals
     m = Module()
     s_input = Signal(unsigned(25))
@@ -67,16 +67,15 @@ def test(x, root, test_name="test"):
     root.activate()
     # convert x from booleqn array to int
     x_ = 0
-
     for i, bit in enumerate(x):
         x_ += bit*2**i
     # init the input
     m.d.sync+= s_input.eq(Const(int(x_)))
-
     async def test_bench(ctx):
         global res
         for _ in range(2):
             await ctx.tick()
+        assert ctx.get(s_output) == y
 
     sim = Simulator(m)
     sim.add_clock(1e-6)
@@ -84,17 +83,3 @@ def test(x, root, test_name="test"):
 
     with sim.write_vcd(test_name+".vcd"):
         sim.run()
-
-    res = -1
-    symbol = "k"
-    #parse the .vcd to find the value of the output signal
-    with open(test_name+".vcd", "r") as f:
-        lines = f.readlines()
-        for line in lines:
-            if "s_output" in line:
-                symbol = line.split()[3]
-            if line.startswith("b") and line.endswith(symbol+"\n"):
-                res = int(line.split()[0][1:], 2)
-                
-    return res
-
