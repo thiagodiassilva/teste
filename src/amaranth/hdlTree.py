@@ -20,13 +20,11 @@ class node:
 
     def activate(self):
         if not self.isLeaf:
-            # with self.m.If(self.input[self.index]):
             with self.m.If(~self.input.bit_select(self.index, 1)):
                 self.child_yes.activate()
             with self.m.Else():
                 self.child_no.activate()
         else:
-            # self.m.d.comb+= self.output[self.class_].eq(1)
             self.m.d.comb+= self.output.eq(self.class_)
     
     def __repr__(self) -> str:
@@ -46,7 +44,7 @@ class node:
             self.child_yes.rec_set_m_i_o(m, i, o)
             self.child_no.rec_set_m_i_o(m, i, o)
 
-def test_Tree(x, y, root, test_name="test"):
+def test_Tree(x, y, root:node, test_name="test"):
     # set correct input output signals
     m = Module()
     s_image = Signal(unsigned(25))
@@ -75,32 +73,32 @@ def test_Tree(x, y, root, test_name="test"):
 
 
 class IO_Block:
-    def __init__(self, m:Module, In_raw : Signal, In_image : Signal):
+    def __init__(self, m:Module, in_raw : Signal, in_image : Signal):
 
-        # In_raw: system input, 8 bit bus, 
-        #         In_raw [7:5]: indicate which row of the image the input belong to
-        #         In_raw [4:0]: The value of each pixel on a row of a 5X5 image
-        self.In_raw = In_raw
+        # in_raw: system input, 8 bit bus, 
+        #         in_raw [7:5]: indicate which row of the image the input belong to
+        #         in_raw [4:0]: The value of each pixel on a row of a 5X5 image
+        self.in_raw = in_raw
 
-        # In_image: 25 bit bus representing the 5x5 image
+        # in_image: 25 bit bus representing the 5x5 image
         #           [4:0] -> 1st row, ... [24:20] -> last row 
-        self.In_image = In_image
+        self.in_image = in_image
 
         self.m = m
 
     def activate(self):
-        # create signal for In_raw[7:5]
-        with self.m.Switch(self.In_raw[0:3]):
+        # create signal for in_raw[7:5]
+        with self.m.Switch(self.in_raw[0:3]):
             with self.m.Case("000"):
-                self.m.d.sync += self.In_image[0:5].eq(self.In_raw[3:8])
+                self.m.d.sync += self.in_image[0:5].eq(self.in_raw[3:8])
             with self.m.Case("001"):
-                self.m.d.sync += self.In_image[5:10].eq(self.In_raw[3:8])
+                self.m.d.sync += self.in_image[5:10].eq(self.in_raw[3:8])
             with self.m.Case("010"):
-                self.m.d.sync += self.In_image[10:15].eq(self.In_raw[3:8])
+                self.m.d.sync += self.in_image[10:15].eq(self.in_raw[3:8])
             with self.m.Case("011"):
-                self.m.d.sync += self.In_image[15:20].eq(self.In_raw[3:8])
+                self.m.d.sync += self.in_image[15:20].eq(self.in_raw[3:8])
             with self.m.Case("100"):
-                self.m.d.sync += self.In_image[20:25].eq(self.In_raw[3:8])
+                self.m.d.sync += self.in_image[20:25].eq(self.in_raw[3:8])
 
 def test_IO_Block(x, test_name="test"):
     # create a module
@@ -153,7 +151,7 @@ def test_combined(x,y, root:node, test_name="test"):
     root.activate()
     m = ResetInserter({'sync':rst})(m)
     
-    #fomat the input
+    #format the input
     shape_data = np.array(x).reshape(5, -1).tolist()
     data =[]
     for i,d in enumerate(shape_data):
