@@ -2,6 +2,7 @@ from amaranth import *
 from amaranth import Elaboratable, Module, Signal, unsigned, Const 
 from amaranth.sim import Simulator
 from amaranth.back import rtlil, verilog
+from amaranth.lib.crc import Algorithm
 import numpy as np
 
 
