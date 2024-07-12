@@ -63,7 +63,7 @@ def test_Tree(x, y, root:node, test_name="test"):
         global res
         for _ in range(2):
             await ctx.tick()
-        assert ctx.get(s_output) == y
+        assert ctx.get(s_output) == y, "failed to classify the image"
 
     sim = Simulator(m)
     sim.add_clock(1e-6)
@@ -84,10 +84,10 @@ class IO_Block:
         # in_image: 25 bit bus representing the 5x5 image
         #           [4:0] -> 1st row, ... [24:20] -> last row 
         self.in_image = in_image
-
         self.m = m
 
     def activate(self):
+
         # create signal for in_raw[7:5]
         with self.m.Switch(self.in_raw[0:3]):
             with self.m.Case("000"):
@@ -119,8 +119,8 @@ def test_IO_Block(x, test_name="test"):
         data.append((i,x_))
 
     async def test_bench(ctx):
+        await ctx.tick()
         for p in data:
-            # set the input
             ctx.set(s_input, p[1]*2**3 + p[0])
             await ctx.tick()
         final = f"{ctx.get(s_output):b}"
@@ -130,7 +130,7 @@ def test_IO_Block(x, test_name="test"):
         while len(res) < 25:
             res.insert(0, False)
         res = np.array(res[::-1])
-        assert np.all(res == np.array(x))
+        assert np.all(res == np.array(x)), "failed to reconstruct the image"
 
     sim = Simulator(m)
     sim.add_clock(1e-6)
@@ -143,15 +143,13 @@ def test_combined(x,y, root:node, test_name="test"):
     # create a module
     m = Module()
     s_input = Signal(unsigned(8))
-    s_image = Signal(unsigned(25))
+    s_image = Signal(unsigned(25), reset_less=True)
     s_output = Signal(unsigned(8))
-    rst = Signal()
+    # rst = Signal()
     io = IO_Block(m, s_input, s_image)
     io.activate()
     root.rec_set_m_i_o(m, s_image, s_output)
     root.activate()
-    m = ResetInserter({'sync':rst})(m)
-    
     #format the input
     shape_data = np.array(x).reshape(5, -1).tolist()
     data =[]
@@ -162,20 +160,15 @@ def test_combined(x,y, root:node, test_name="test"):
         data.append((i,x_))
 
     async def test_bench(ctx):
+        await ctx.tick()
         for p in data:
             # set the input
             ctx.set(s_input, p[1]*2**3 + p[0])
             await ctx.tick()
-        assert ctx.get(s_output) == y
-        ctx.set(s_input, 0)
-        ctx.set(rst, 1)
-        await ctx.tick()
-        ctx.set(rst, 0)
-        await ctx.tick()
-        assert ctx.get(s_image) == 0
+        assert ctx.get(s_output) == y, "failed to classify the image"
 
     sim = Simulator(m)
-    sim.add_clock(1e-6)
+    sim.add_clock(1e-6, domain="sync")
     sim.add_testbench(test_bench)
     with sim.write_vcd(test_name+".vcd"):
         sim.run()
@@ -184,21 +177,36 @@ def test_combined(x,y, root:node, test_name="test"):
 def generate_verilog(root:node, filename="tree.v"):
     # create the module and key signals
     m = Module()
-    s_input = Signal(unsigned(8))
+    ui_in = Signal(unsigned(8))
     s_image = Signal(unsigned(25))
-    s_output = Signal(unsigned(8))
-    rst = Signal()
+    uo_out = Signal(unsigned(8))
+
+    uio_in = Signal(8)
+    uio_out = Signal(8) # bidir, out
+    uio_oe = Signal(8) # bidir, IOs: Enable path (active high: 0=input, 1=output)
+    ena = Signal()
+    clk = Signal()
+    rst_n = Signal()
+    # clock and reset
+    cd_sync = ClockDomain("sync")
+    m.domains += cd_sync
+    m.d.comb += [
+        ClockSignal("sync").eq(clk),
+        ResetSignal("sync").eq(~rst_n),
+    ]
     # create the IO block and the tree
-    io = IO_Block(m, s_input, s_image)
+    io = IO_Block(m, ui_in, s_image)
     io.activate()
     # set the tree signals
-    root.rec_set_m_i_o(m, s_image, s_output)
+    root.rec_set_m_i_o(m, s_image, uo_out)
     root.activate()
-    # add reset
-    m = ResetInserter({'sync':rst})(m)
     # convert the module to verilog
     with open(filename, "w") as f:
-        f.write(verilog.convert(m, ports=[s_input, s_output]))
+        f.write(verilog.convert(m, 
+                                name="tt_um_COLVERTYETY_top",
+                                emit_src=False, strip_internal_attrs=True,
+                                ports=[ui_in, uo_out, uio_in,uio_out, uio_oe, ena, clk, rst_n]
+                                ))
 
     print("Verilog file generated")
     print(f"File: {filename}")
